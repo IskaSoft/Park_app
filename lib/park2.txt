@@ -1,0 +1,337 @@
+
+class CategoriesScreen extends StatefulWidget {
+  const CategoriesScreen({super.key});
+
+  @override
+  _CategoriesScreenState createState() => _CategoriesScreenState();
+}
+
+class _CategoriesScreenState extends State<CategoriesScreen> {
+  List categories = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchCategories();
+  }
+
+  Future<void> fetchCategories() async {
+    final response =
+        await http.get(Uri.parse('http://192.168.1.132:8000/api/categories/'));
+    if (response.statusCode == 200) {
+      setState(() {
+        categories = json.decode(response.body);
+        isLoading = false;
+      });
+    } else {
+      throw Exception('Failed to load categories');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Categories')),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 3 / 2,
+              ),
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                var category = categories[index];
+                return GestureDetector(
+                  onTap: () {
+                    if (category['videos'].isEmpty) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SubcategoriesScreen(
+                            subcategories: category['subcategories'],
+                          ),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              VideosScreen(videos: category['videos']),
+                        ),
+                      );
+                    }
+                  },
+                  child: Card(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.network(category['image'], height: 80),
+                        Text(category['title']),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class SubcategoriesScreen extends StatelessWidget {
+  final List subcategories;
+
+  const SubcategoriesScreen({super.key, required this.subcategories});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Subcategories')),
+      body: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 3 / 2,
+        ),
+        itemCount: subcategories.length,
+        itemBuilder: (context, index) {
+          var subcategory = subcategories[index];
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => VideoGridScreen(
+                          videos: subcategory['videos'],
+                      )));
+            },
+            child: Card(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.network(subcategory['image'], height: 80),
+                  Text(subcategory['title']),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class VideoGridScreen extends StatelessWidget {
+  final List videos;
+  const VideoGridScreen({super.key, required this.videos});
+
+  @override
+  Widget build(BuildContext context) {
+    return  Scaffold( appBar: AppBar(title:const Text('Subcategories Videos')),
+      body: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 3 / 2,
+        ),
+        itemCount: videos.length,
+        itemBuilder: (context, index) {
+          var video = videos[index];
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => VideoPlayerScreen(
+                    videos: videos,
+                    initialIndex: index,
+                    title: video['title'],
+                    
+                    createdAt: DateTime.parse(video['created_at'])
+                  ),
+                ),
+              );
+            },
+            child: Card(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(video['title']),
+                ],
+              ),
+            ),
+          );
+        },
+      ),);
+  }
+}
+
+class VideosScreen extends StatelessWidget {
+  final List videos;
+
+  const VideosScreen({super.key, required this.videos});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Videos')),
+      body: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 3 / 2,
+        ),
+        itemCount: videos.length,
+        itemBuilder: (context, index) {
+          var video = videos[index];
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => VideoPlayerScreen(
+                    videos: videos,
+                    initialIndex: index,
+                    title: video['title'],
+                 createdAt: DateTime.parse(video['created_at'])
+                  ),
+                ),
+              );
+            },
+            child: Card(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(video['title']),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class VideoPlayerScreen extends StatefulWidget {
+  final List videos;
+  final int initialIndex;
+  final String title;
+  final DateTime createdAt;
+  const VideoPlayerScreen(
+      {super.key, required this.videos, required this.initialIndex, required this.title, required this.createdAt});
+
+  @override
+  _VideoPlayerScreenState createState() => _VideoPlayerScreenState();
+}
+
+class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
+  late PageController _pageController;
+  VideoPlayerController? _videoController;
+  int currentIndex = 0;
+  bool _isPlaying = false;
+  @override
+  void initState() {
+    super.initState();
+    currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: currentIndex);
+    _initializeAndPlay(currentIndex);
+  }
+
+  Future<void> _initializeAndPlay(int index) async {
+    try {
+      _videoController?.dispose();
+
+      _videoController =
+          VideoPlayerController.network(widget.videos[index]['videos']);
+
+      _videoController!.addListener(() {
+        if (_videoController!.value.hasError) {
+          print(
+              "Video player error: ${_videoController!.value.errorDescription}");
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Error loading video")),
+          );
+        }
+      });
+
+      await _videoController!.initialize();
+      setState(() {});
+      _videoController!.play();
+    } catch (e) {
+      print("Failed to load video: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error loading video: $e")),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      currentIndex = index;
+    });
+    _initializeAndPlay(index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: PageView.builder(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        scrollDirection: Axis.vertical,
+        itemCount: widget.videos.length,
+        itemBuilder: (context, index) {
+          return Stack(
+            children:[ Center(
+              child: _videoController != null &&
+                      _videoController!.value.isInitialized
+                  ? AspectRatio(
+                      aspectRatio: _videoController!.value.aspectRatio,
+                      child: VideoPlayer(_videoController!),
+                    )
+                  : const Center(child: CircularProgressIndicator()),
+            ),
+             Positioned(
+            top: 40.0,
+            left: 16.0,
+            right: 16.0,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.title,
+                  style: TextStyle(color: Colors.black, fontSize: 20.0, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  timeago.format(widget.createdAt),
+                  style: TextStyle(color: Colors.black, fontSize: 16.0),
+                ),
+              ],
+            ),
+          ),
+          // Add Play/Pause button on top of the video player
+          Center(
+            child: IconButton(
+              icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 50.0),
+              onPressed: () {
+                setState(() {
+                  _isPlaying ?  _videoController?.pause() : _videoController?.play();
+                  _isPlaying = !_isPlaying;
+                });
+              },
+            ),
+          ),
+            ]
+          );
+        },
+      ),
+    );
+  }
+}
