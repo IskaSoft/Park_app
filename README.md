@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Park_app
 Park_App - is a Video app with Categorized,Subcategorized videos
 =======
@@ -19,3 +20,7 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 >>>>>>> cadfd37 (First commit)
+=======
+# Park_app
+Park_App - is a Video app with Categorized,Subcategorized videos
+>>>>>>> 50911316ba57e944fa39fdbedc62bd5bbe3279a9
