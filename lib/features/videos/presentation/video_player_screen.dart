@@ -1,6 +1,7 @@
 // lib/features/videos/presentation/video_player_screen.dart
 // REPLACE entire file.
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -130,7 +131,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           final video = widget.videos[index];
           final ctrl = _controllers[index];
           final isActive = index == _currentIndex;
-          final isInitialized = ctrl?.value.isInitialized ?? false;
+          final hasError = ctrl?.value.hasError ?? false;
+          final isInitialized = (ctrl?.value.isInitialized ?? false) && !hasError;
           final isPlaying = ctrl?.value.isPlaying ?? false;
 
           return GestureDetector(
@@ -138,8 +140,29 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _SmartVideoLayer(controller: isInitialized ? ctrl : null),
-                if (!isInitialized)
+                if (hasError)
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline_rounded,
+                            color: Colors.white54, size: 48),
+                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Text(
+                            'Wideo açylmady\n${ctrl?.value.errorDescription ?? "Bul enjamda format goldanylmaýar"}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white54, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  _SmartVideoLayer(controller: isInitialized ? ctrl : null),
+
+                if (!isInitialized && !hasError)
                   const Center(
                     child: CircularProgressIndicator(
                         color: Colors.white38, strokeWidth: 2),
@@ -215,11 +238,16 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 }
 
 // =============================================================================
-// _SmartVideoLayer
+// Premium TikTok-style Video Layer
 //
-// Strategiýa:
-//   Landscape → AspectRatio + contain (letterbox, doly kadr)
-//   Portrait  → _PortraitFill (cover, ekran doly dolar)
+// Meseläniň çözgüdi:
+//   Göz öňünde tutulyşy ýaly wideolarda "gyralary görünmeýär" meselesi
+//   ýa-da "has kiçi görünýär" diýen duýgysy bolmazlygy üçin arka fona 
+//   hiç hili çäk (bars) goýman, şol wideonyň özüni ümezleden (blur) edip  
+//   goýýarys we üstünden bolsa wideony doly görkezýäris (contain).
+//   Şeýlelik bilen:
+//   - Wideonyň ähli gyralary görünýär. (Kesilmeýär)
+//   - Ekran garaşsyz hemme taraplaýyn premium görünýär.
 // =============================================================================
 
 class _SmartVideoLayer extends StatelessWidget {
@@ -233,66 +261,12 @@ class _SmartVideoLayer extends StatelessWidget {
     final size = controller!.value.size;
     if (size.isEmpty) return const ColoredBox(color: Colors.black);
 
-    if (size.width > size.height) {
-      // Landscape — contain
-      return ColoredBox(
-        color: Colors.black,
-        child: Center(
-          child: AspectRatio(
-            aspectRatio: controller!.value.aspectRatio,
-            child: VideoPlayer(controller!),
-          ),
-        ),
-      );
-    }
-
-    // Portrait — cover
-    return _PortraitFill(controller: controller!);
-  }
-}
-
-// =============================================================================
-// _PortraitFill
-//
-// Meseleniň düýp sebäbi:
-//   VideoPlayer widget-i Flutter layout engine tarapyndan berlen
-//   constraint ölçegine görä render edilýär.
-//   Öň AspectRatio → Transform.scale zynjyrynda AspectRatio
-//   Stack-yň doly ölçegini alýardy (meselem 390×844),
-//   soňra scale edilýärdi → netije nädogry bolýardy.
-//
-// Dogry çözgüt — FittedBox(fit: BoxFit.cover):
-//   1. VideoPlayer hakyky wideo ölçeginde (meselem 1080×1920) çekilýär
-//   2. FittedBox ony ekrany doly doldurýança scale edýär
-//   3. BoxFit.cover ekrany doly doldurýar, aspect ratio saklanýar
-//   4. Artykmaç bölek daşary çykýar → ClipRect bilen kesilýär
-//
-// Bu usul:
-//   - Her wideo üçin aýratyn hasaplama gerek däl
-//   - Flutter-yň built-in BoxFit logikasy ulanylýar (ygtybarly)
-//   - Constraint meselesinden gaça durýar
-// =============================================================================
-
-class _PortraitFill extends StatelessWidget {
-  const _PortraitFill({required this.controller});
-  final VideoPlayerController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = controller.value.size;
-
-    return ClipRect(
-      child: SizedBox.expand(
-        child: FittedBox(
-          fit: BoxFit.cover,
-          // SizedBox wideonyň HAKYKY pixel ölçegini Flutter-a berýär.
-          // FittedBox şony ekrana scale edýär.
-          // Öň bu SizedBox ýokdy — şonuň üçin işlemeýärdi.
-          child: SizedBox(
-            width: size.width,
-            height: size.height,
-            child: VideoPlayer(controller),
-          ),
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: controller!.value.aspectRatio,
+          child: VideoPlayer(controller!),
         ),
       ),
     );
