@@ -261,14 +261,40 @@ class _SmartVideoLayer extends StatelessWidget {
     final size = controller!.value.size;
     if (size.isEmpty) return const ColoredBox(color: Colors.black);
 
-    return ColoredBox(
-      color: Colors.black,
-      child: Center(
-        child: AspectRatio(
-          aspectRatio: controller!.value.aspectRatio,
-          child: VideoPlayer(controller!),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // 1. Arka fon - Blur effect (Video özüni cover edip alýar)
+        // Bellik: Geçiş (swipe) wagtynda blur başga sahypalara süýşmezligi üçin ImageFiltered ulanýarys
+        ClipRect(
+          child: SizedBox.expand(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 30.0, sigmaY: 30.0),
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: size.width,
+                  height: size.height,
+                  child: VideoPlayer(controller!),
+                ),
+              ),
+            ),
+          ),
         ),
-      ),
+
+        // 2. Ýuka gara filtr (wideo açyk görner ýaly)
+        const Positioned.fill(
+          child: ColoredBox(color: Colors.black54),
+        ),
+
+        // 3. Esasy wideo - Contain (Hemme gyralary gowy görner ýaly)
+        Center(
+          child: AspectRatio(
+            aspectRatio: controller!.value.aspectRatio,
+            child: VideoPlayer(controller!),
+          ),
+        ),
+      ],
     );
   }
 }
