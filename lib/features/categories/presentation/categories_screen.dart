@@ -1,10 +1,15 @@
 // lib/features/categories/presentation/categories_screen.dart
-// Replace entire file.
+// REPLACE entire file.
+//
+// Added: proper error handling that shows NoInternetScreen
+// instead of blank white screen when server is unreachable.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/category_providers.dart';
 import '../../../core/models/models.dart';
+import '../../../core/errors/app_exception.dart';
+import '../../../core/presentation/no_internet_screen.dart';
 import '../../../shared/widgets/media_card.dart';
 import '../../../shared/widgets/state_widgets.dart';
 import '../../videos/presentation/video_grid_screen.dart';
@@ -22,9 +27,8 @@ class CategoriesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Park'),
+        title: const Text('Seýil'), // ← app adyňyzy şu ýere ýazyň
         actions: [
-          // Saved videos button with count badge
           Stack(
             children: [
               IconButton(
@@ -66,14 +70,30 @@ class CategoriesScreen extends ConsumerWidget {
       ),
       body: async.when(
         loading: () => const ShimmerGrid(),
-        error: (e, _) => ErrorStateWidget(
-          message: e.toString(),
-          onRetry: () => ref.invalidate(categoriesProvider),
-        ),
+
+        // ── Error handling — no blank white screen ─────────────────────────
+        error: (error, _) {
+          // Network / server error → show dedicated no-internet screen
+          final isNetworkError =
+              error is NetworkException || error is ServerException;
+
+          if (isNetworkError) {
+            return NoInternetScreen(
+              onRetry: () => ref.invalidate(categoriesProvider),
+            );
+          }
+
+          // Other errors → show inline error widget with retry
+          return ErrorStateWidget(
+            message: error.toString(),
+            onRetry: () => ref.invalidate(categoriesProvider),
+          );
+        },
+
         data: (page) {
           if (page.results.isEmpty) {
             return const EmptyStateWidget(
-              message: 'No categories available.',
+              message: 'Kategoriýa ýok.',
               icon: Icons.category_outlined,
             );
           }
@@ -129,8 +149,8 @@ class _CategoryGrid extends StatelessWidget {
           title: cat.title,
           imageUrl: cat.image,
           badge: cat.hasSubcategories
-              ? '${cat.subcategoryCount} topics'
-              : '${cat.videoCount} videos',
+              ? '${cat.subcategoryCount} bölüm'
+              : '${cat.videoCount} wideo',
           onTap: () => _navigate(context, cat),
         );
       },

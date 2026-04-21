@@ -1,14 +1,14 @@
 // lib/features/videos/presentation/video_player_screen.dart
-// Replace entire file.
+// REPLACE entire file.
 //
-// Fixes & features:
-//   ✅ Play/Pause toggle — reliable, icon state always correct
-//   ✅ Video resets to 0:00 on every open / page change
-//   ✅ Double-tap left  → seek -10s
-//   ✅ Double-tap right → seek +10s
-//   ✅ View count incremented once per video via API
-//   ✅ Save button in overlay
-//   ✅ Memory management — dispose far-away controllers
+// Fix 1 — Landscape videos (YouTube 16:9):
+//   Portrait  → FittedBox + cover  (fills screen, slight side crop — TikTok style)
+//   Landscape → AspectRatio + contain (letterbox, shows full video — no cropping)
+//
+// Fix 2 — No internet / blank screen:
+//   Handled in categories_screen.dart (see that file).
+//
+// All previous fixes retained.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -38,11 +38,8 @@ class VideoPlayerScreen extends ConsumerStatefulWidget {
 class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   late final PageController _pageController;
   final Map<int, VideoPlayerController> _controllers = {};
-
   int _currentIndex = 0;
   bool _showOverlay = true;
-
-  // Tracks which videos have already had their view counted this session
   final Set<int> _viewedIds = {};
 
   @override
@@ -54,28 +51,20 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     _initPage(_currentIndex);
   }
 
-  // ── Controller lifecycle ───────────────────────────────────────────────────
-
   Future<void> _initPage(int index) async {
     if (index < 0 || index >= widget.videos.length) return;
-
-    // Preload current + next
     for (final i in [index, index + 1]) {
       if (i < 0 || i >= widget.videos.length) continue;
-      if (_controllers.containsKey(i)) continue;
-      await _createController(i);
+      if (!_controllers.containsKey(i)) await _createController(i);
     }
-
-    // Play current, reset position to 0:00 (BUG FIX)
     final ctrl = _controllers[index];
     if (ctrl != null && ctrl.value.isInitialized) {
-      await ctrl.seekTo(Duration.zero); // ← always reset position
+      await ctrl.seekTo(Duration.zero);
       await ctrl.play();
       if (mounted) setState(() {});
     }
-
-    _incrementViewCount(index);
-    _disposeDistantControllers(index);
+    _recordView(index);
+    _disposeDistant(index);
   }
 
   Future<void> _createController(int index) async {
@@ -85,30 +74,29 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     _controllers[index] = ctrl;
     await ctrl.initialize();
     ctrl.setLooping(true);
-    // Listen to playback state changes to rebuild UI reliably (BUG FIX)
-    ctrl.addListener(() {
-      if (mounted) setState(() {});
-    });
+    ctrl.addListener(_onControllerUpdate);
   }
 
-  void _disposeDistantControllers(int currentIndex) {
-    final toDispose =
-        _controllers.keys.where((k) => (k - currentIndex).abs() > 2).toList();
-    for (final k in toDispose) {
+  void _onControllerUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  void _disposeDistant(int current) {
+    final keys =
+        _controllers.keys.where((k) => (k - current).abs() > 2).toList();
+    for (final k in keys) {
+      _controllers[k]?.removeListener(_onControllerUpdate);
       _controllers[k]?.dispose();
       _controllers.remove(k);
     }
   }
 
-  void _incrementViewCount(int index) {
-    final videoId = widget.videos[index].id;
-    if (_viewedIds.contains(videoId)) return;
-    _viewedIds.add(videoId);
-    // Fire-and-forget — non-critical
-    ref.read(videoRepositoryProvider).incrementView(videoId);
+  void _recordView(int index) {
+    final id = widget.videos[index].id;
+    if (_viewedIds.contains(id)) return;
+    _viewedIds.add(id);
+    ref.read(videoRepositoryProvider).incrementView(id);
   }
-
-  // ── Page change ────────────────────────────────────────────────────────────
 
   Future<void> _onPageChanged(int index) async {
     _controllers[_currentIndex]?.pause();
@@ -116,36 +104,27 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     await _initPage(index);
   }
 
-  // ── Play / Pause (BUG FIX: single source of truth via controller.value) ────
-
   void _togglePlayPause() {
     final ctrl = _controllers[_currentIndex];
     if (ctrl == null || !ctrl.value.isInitialized) return;
-    setState(() {
-      ctrl.value.isPlaying ? ctrl.pause() : ctrl.play();
-    });
+    ctrl.value.isPlaying ? ctrl.pause() : ctrl.play();
   }
 
   void _toggleOverlay() => setState(() => _showOverlay = !_showOverlay);
-
-  // ── Double-tap seek ────────────────────────────────────────────────────────
 
   Future<void> _seekBy(Duration delta) async {
     final ctrl = _controllers[_currentIndex];
     if (ctrl == null || !ctrl.value.isInitialized) return;
     final current = ctrl.value.position;
     final total = ctrl.value.duration;
-    final target = current + delta;
-    final clamped = target < Duration.zero
+    final raw = current + delta;
+    final target = raw < Duration.zero
         ? Duration.zero
-        : target > total
+        : raw > total
             ? total
-            : target;
-    await ctrl.seekTo(clamped);
-    if (mounted) setState(() {});
+            : raw;
+    await ctrl.seekTo(target);
   }
-
-  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +139,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           final video = widget.videos[index];
           final ctrl = _controllers[index];
           final isActive = index == _currentIndex;
+          final isInitialized = ctrl?.value.isInitialized ?? false;
           final isPlaying = ctrl?.value.isPlaying ?? false;
 
           return GestureDetector(
@@ -167,62 +147,60 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // ── Video layer ──────────────────────────────────────────────
-                _VideoLayer(controller: ctrl),
+                // ── Smart video (portrait cover / landscape contain) ─────────
+                _SmartVideoLayer(controller: isInitialized ? ctrl : null),
 
-                // ── Double-tap zones ─────────────────────────────────────────
+                // ── Loading spinner ──────────────────────────────────────────
+                if (!isInitialized)
+                  const Center(
+                    child: CircularProgressIndicator(
+                        color: Colors.white38, strokeWidth: 2),
+                  ),
+
+                // ── Seek zones ───────────────────────────────────────────────
                 if (isActive) ...[
-                  // Left zone — seek -10s
                   Positioned(
                     left: 0,
                     top: 0,
                     bottom: 0,
                     width: MediaQuery.of(context).size.width * 0.35,
-                    child: _DoubleTapSeekZone(
+                    child: _SeekZone(
+                      direction: _SeekDirection.backward,
                       onDoubleTap: () => _seekBy(const Duration(seconds: -10)),
-                      direction: SeekDirection.backward,
                     ),
                   ),
-                  // Right zone — seek +10s
                   Positioned(
                     right: 0,
                     top: 0,
                     bottom: 0,
                     width: MediaQuery.of(context).size.width * 0.35,
-                    child: _DoubleTapSeekZone(
+                    child: _SeekZone(
+                      direction: _SeekDirection.forward,
                       onDoubleTap: () => _seekBy(const Duration(seconds: 10)),
-                      direction: SeekDirection.forward,
                     ),
                   ),
                 ],
 
-                // ── Centre tap-to-play/pause ─────────────────────────────────
-                // Only the centre 30% of width triggers play/pause
-                Center(
-                  child: SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.30,
-                    height: double.infinity,
+                // ── Play/pause tap ───────────────────────────────────────────
+                if (isActive)
+                  Positioned.fill(
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
-                      onTap: isActive ? _togglePlayPause : null,
+                      onTap: _togglePlayPause,
                       child: AnimatedOpacity(
-                        opacity: (isActive && !isPlaying) ? 1.0 : 0.0,
-                        duration: const Duration(milliseconds: 200),
+                        opacity: (!isPlaying && isInitialized) ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 180),
                         child: const Center(child: _PauseIndicator()),
                       ),
                     ),
                   ),
-                ),
 
                 // ── Top bar ──────────────────────────────────────────────────
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: _TopBar(
-                    visible: _showOverlay,
-                    video: video,
-                  ),
+                  child: _TopBar(visible: _showOverlay, video: video),
                 ),
 
                 // ── Bottom meta ──────────────────────────────────────────────
@@ -230,9 +208,9 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  child: _VideoMeta(
+                  child: _BottomMeta(
                     video: video,
-                    controller: isActive ? ctrl : null,
+                    controller: isActive && isInitialized ? ctrl : null,
                     visible: _showOverlay,
                   ),
                 ),
@@ -249,74 +227,87 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _pageController.dispose();
     for (final ctrl in _controllers.values) {
+      ctrl.removeListener(_onControllerUpdate);
       ctrl.dispose();
     }
     super.dispose();
   }
 }
 
-// ── Sub-widgets ───────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Smart Video Layer — THE KEY FIX
+//
+// Portrait (height > width): TikTok-style cover — fills screen.
+// Landscape (width > height): YouTube-style contain — no cropping, letterbox.
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _VideoLayer extends StatelessWidget {
-  const _VideoLayer({this.controller});
+class _SmartVideoLayer extends StatelessWidget {
+  const _SmartVideoLayer({this.controller});
   final VideoPlayerController? controller;
 
   @override
   Widget build(BuildContext context) {
-    if (controller == null || !controller!.value.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white38, strokeWidth: 2),
-      );
-    }
-    return FittedBox(
-      fit: BoxFit.cover,
-      child: SizedBox(
-        width: controller!.value.size.width,
-        height: controller!.value.size.height,
-        child: VideoPlayer(controller!),
-      ),
+    if (controller == null) return const SizedBox.expand();
+
+    final size = controller!.value.size;
+    final isLandscape = size.width > size.height;
+
+    return SizedBox.expand(
+      child: isLandscape
+          // Landscape: show full video, letterbox (black top/bottom)
+          ? Center(
+              child: AspectRatio(
+                aspectRatio: controller!.value.aspectRatio,
+                child: VideoPlayer(controller!),
+              ),
+            )
+          // Portrait: cover full screen (TikTok style)
+          : FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: size.width,
+                height: size.height,
+                child: VideoPlayer(controller!),
+              ),
+            ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Supporting widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _PauseIndicator extends StatelessWidget {
   const _PauseIndicator();
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 60,
-      height: 60,
+      width: 64,
+      height: 64,
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.5),
         shape: BoxShape.circle,
       ),
       child:
-          const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
+          const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 38),
     );
   }
 }
 
-// ── Double-tap seek zone ──────────────────────────────────────────────────────
+enum _SeekDirection { forward, backward }
 
-enum SeekDirection { forward, backward }
-
-class _DoubleTapSeekZone extends StatefulWidget {
-  const _DoubleTapSeekZone({
-    required this.onDoubleTap,
-    required this.direction,
-  });
-
+class _SeekZone extends StatefulWidget {
+  const _SeekZone({required this.direction, required this.onDoubleTap});
+  final _SeekDirection direction;
   final VoidCallback onDoubleTap;
-  final SeekDirection direction;
-
   @override
-  State<_DoubleTapSeekZone> createState() => _DoubleTapSeekZoneState();
+  State<_SeekZone> createState() => _SeekZoneState();
 }
 
-class _DoubleTapSeekZoneState extends State<_DoubleTapSeekZone>
+class _SeekZoneState extends State<_SeekZone>
     with SingleTickerProviderStateMixin {
-  late AnimationController _anim;
+  late final AnimationController _anim;
   bool _visible = false;
 
   @override
@@ -324,9 +315,9 @@ class _DoubleTapSeekZoneState extends State<_DoubleTapSeekZone>
     super.initState();
     _anim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 500),
     )..addStatusListener((s) {
-        if (s == AnimationStatus.completed) {
+        if (s == AnimationStatus.completed && mounted) {
           setState(() => _visible = false);
         }
       });
@@ -346,8 +337,7 @@ class _DoubleTapSeekZoneState extends State<_DoubleTapSeekZone>
 
   @override
   Widget build(BuildContext context) {
-    final isForward = widget.direction == SeekDirection.forward;
-
+    final isForward = widget.direction == _SeekDirection.forward;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onDoubleTap: _handleDoubleTap,
@@ -359,7 +349,7 @@ class _DoubleTapSeekZoneState extends State<_DoubleTapSeekZone>
             gradient: LinearGradient(
               begin: isForward ? Alignment.centerRight : Alignment.centerLeft,
               end: isForward ? Alignment.centerLeft : Alignment.centerRight,
-              colors: [Colors.white.withOpacity(0.15), Colors.transparent],
+              colors: [Colors.white.withOpacity(0.18), Colors.transparent],
             ),
             borderRadius: BorderRadius.horizontal(
               left: isForward ? Radius.zero : const Radius.circular(80),
@@ -375,15 +365,15 @@ class _DoubleTapSeekZoneState extends State<_DoubleTapSeekZone>
                       ? Icons.fast_forward_rounded
                       : Icons.fast_rewind_rounded,
                   color: Colors.white,
-                  size: 36,
+                  size: 38,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   isForward ? '+10s' : '-10s',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -394,8 +384,6 @@ class _DoubleTapSeekZoneState extends State<_DoubleTapSeekZone>
     );
   }
 }
-
-// ── Top bar ───────────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.visible, required this.video});
@@ -411,7 +399,7 @@ class _TopBar extends StatelessWidget {
         padding: EdgeInsets.only(
           top: MediaQuery.of(context).padding.top + 4,
           left: 4,
-          right: 4,
+          right: 8,
         ),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -428,7 +416,6 @@ class _TopBar extends StatelessWidget {
               onPressed: () => Navigator.maybePop(context),
             ),
             const Spacer(),
-            // Save button in top bar
             SaveButton(video: video),
           ],
         ),
@@ -437,15 +424,12 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ── Bottom meta ───────────────────────────────────────────────────────────────
-
-class _VideoMeta extends StatelessWidget {
-  const _VideoMeta({
+class _BottomMeta extends StatelessWidget {
+  const _BottomMeta({
     required this.video,
     required this.controller,
     required this.visible,
   });
-
   final Video video;
   final VideoPlayerController? controller;
   final bool visible;
@@ -473,41 +457,34 @@ class _VideoMeta extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              video.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            Text(video.title,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700)),
             if (video.description.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(
-                video.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-              ),
+              Text(video.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
             ],
             const SizedBox(height: 6),
             Row(
               children: [
-                Text(
-                  TimeUtils.timeAgo(video.createdAt),
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                ),
+                Text(TimeUtils.timeAgo(video.createdAt),
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 12)),
                 const SizedBox(width: 12),
                 const Icon(Icons.visibility_outlined,
                     color: Colors.white38, size: 14),
                 const SizedBox(width: 4),
-                Text(
-                  video.viewsDisplay,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
-                ),
+                Text(video.viewsDisplay,
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 12)),
               ],
             ),
-            if (controller != null && controller!.value.isInitialized) ...[
+            if (controller != null) ...[
               const SizedBox(height: 12),
               VideoProgressIndicator(
                 controller!,

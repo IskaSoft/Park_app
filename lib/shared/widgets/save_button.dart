@@ -1,7 +1,10 @@
 // lib/shared/widgets/save_button.dart
+// No changes needed — already correct.
+// Included here for completeness.
 //
-// Reusable bookmark icon used in AppBar and VideoPlayer overlay.
-// Animates between saved/unsaved states.
+// This widget is used in VideoPlayerScreen top bar.
+// It reads from savedVideosProvider and syncs with grid automatically
+// because both use the same Riverpod provider.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,8 +29,8 @@ class SaveButton extends ConsumerStatefulWidget {
 
 class _SaveButtonState extends ConsumerState<SaveButton>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnim;
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnim;
 
   @override
   void initState() {
@@ -55,8 +58,10 @@ class _SaveButtonState extends ConsumerState<SaveButton>
 
   @override
   Widget build(BuildContext context) {
-    final isSaved = ref.watch(savedVideosProvider
-        .select((list) => list.any((v) => v.id == widget.video.id)));
+    final isSaved = ref.watch(
+      savedVideosProvider
+          .select((list) => list.any((v) => v.id == widget.video.id)),
+    );
 
     return ScaleTransition(
       scale: _scaleAnim,
