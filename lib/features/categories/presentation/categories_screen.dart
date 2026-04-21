@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:park_app/features/banners/presentation/banner_carousel.dart';
 import '../providers/category_providers.dart';
 import '../../../core/models/models.dart';
 import '../../../core/errors/app_exception.dart';
@@ -105,15 +106,43 @@ class CategoriesScreen extends ConsumerWidget {
               icon: Icons.category_outlined,
             );
           }
-          return _CategoryGrid(categories: page.results);
+          return _CategoriesBody(categories: page.results);
         },
       ),
     );
   }
 }
 
-class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid({required this.categories});
+// ─────────────────────────────────────────────────────────────────────────────
+// Loading state — shimmer carousel + shimmer grid
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LoadingBody extends StatelessWidget {
+  const _LoadingBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return const CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(top: 16, bottom: 12),
+            // BannerCarousel özünde shimmer görkezýär
+            child: BannerCarousel(),
+          ),
+        ),
+        SliverFillRemaining(child: ShimmerGrid()),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Categories body — carousel + grid
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CategoriesBody extends StatelessWidget {
+  const _CategoriesBody({required this.categories});
   final List<Category> categories;
 
   void _navigate(BuildContext context, Category category) {
@@ -142,26 +171,43 @@ class _CategoryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.85,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: categories.length,
-      itemBuilder: (context, index) {
-        final cat = categories[index];
-        return MediaCard(
-          title: cat.title,
-          imageUrl: cat.image,
-          badge: cat.hasSubcategories
-              ? '${cat.subcategoryCount} bölüm'
-              : '${cat.videoCount} wideo',
-          onTap: () => _navigate(context, cat),
-        );
-      },
+    return CustomScrollView(
+      slivers: [
+        // ── Banner carousel — ýokardan ──────────────────────────────────────
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(top: 16, bottom: 12),
+            child: BannerCarousel(),
+          ),
+        ),
+
+        // ── Kategoriýa grid ─────────────────────────────────────────────────
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          sliver: SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final cat = categories[index];
+                return MediaCard(
+                  title: cat.title,
+                  imageUrl: cat.image,
+                  badge: cat.hasSubcategories
+                      ? '${cat.subcategoryCount} bölüm'
+                      : '${cat.videoCount} wideo',
+                  onTap: () => _navigate(context, cat),
+                );
+              },
+              childCount: categories.length,
+            ),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.85,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
