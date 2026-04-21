@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color _primary = Color(0xFF1A1A2E);
+  static const Color _primary = Color.fromARGB(255, 52, 52, 73);
   static const Color _accent = Color(0xFFE94560);
   static const Color _surface = Color(0xFF16213E);
   static const Color _cardBg = Color(0xFF0F3460);
@@ -74,7 +74,8 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color shimmer;
 
   @override
-  AppColors copyWith({Color? accent, Color? cardBg, Color? textSecondary, Color? shimmer}) {
+  AppColors copyWith(
+      {Color? accent, Color? cardBg, Color? textSecondary, Color? shimmer}) {
     return AppColors(
       accent: accent ?? this.accent,
       cardBg: cardBg ?? this.cardBg,

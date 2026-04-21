@@ -1,14 +1,5 @@
 // lib/features/videos/presentation/video_player_screen.dart
 // REPLACE entire file.
-//
-// Fix 1 — Landscape videos (YouTube 16:9):
-//   Portrait  → FittedBox + cover  (fills screen, slight side crop — TikTok style)
-//   Landscape → AspectRatio + contain (letterbox, shows full video — no cropping)
-//
-// Fix 2 — No internet / blank screen:
-//   Handled in categories_screen.dart (see that file).
-//
-// All previous fixes retained.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -147,17 +138,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // ── Smart video (portrait cover / landscape contain) ─────────
                 _SmartVideoLayer(controller: isInitialized ? ctrl : null),
-
-                // ── Loading spinner ──────────────────────────────────────────
                 if (!isInitialized)
                   const Center(
                     child: CircularProgressIndicator(
                         color: Colors.white38, strokeWidth: 2),
                   ),
-
-                // ── Seek zones ───────────────────────────────────────────────
                 if (isActive) ...[
                   Positioned(
                     left: 0,
@@ -180,8 +166,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                     ),
                   ),
                 ],
-
-                // ── Play/pause tap ───────────────────────────────────────────
                 if (isActive)
                   Positioned.fill(
                     child: GestureDetector(
@@ -194,16 +178,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                       ),
                     ),
                   ),
-
-                // ── Top bar ──────────────────────────────────────────────────
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
                   child: _TopBar(visible: _showOverlay, video: video),
                 ),
-
-                // ── Bottom meta ──────────────────────────────────────────────
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -234,12 +214,13 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Smart Video Layer — THE KEY FIX
+// =============================================================================
+// _SmartVideoLayer
 //
-// Portrait (height > width): TikTok-style cover — fills screen.
-// Landscape (width > height): YouTube-style contain — no cropping, letterbox.
-// ─────────────────────────────────────────────────────────────────────────────
+// Strategiýa:
+//   Landscape → AspectRatio + contain (letterbox, doly kadr)
+//   Portrait  → _PortraitFill (cover, ekran doly dolar)
+// =============================================================================
 
 class _SmartVideoLayer extends StatelessWidget {
   const _SmartVideoLayer({this.controller});
@@ -247,39 +228,84 @@ class _SmartVideoLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (controller == null) return const SizedBox.expand();
+    if (controller == null) return const ColoredBox(color: Colors.black);
 
     final size = controller!.value.size;
-    final isLandscape = size.width > size.height;
+    if (size.isEmpty) return const ColoredBox(color: Colors.black);
 
-    return SizedBox.expand(
-      child: isLandscape
-          // Landscape: show full video, letterbox (black top/bottom)
-          ? Center(
-              child: AspectRatio(
-                aspectRatio: controller!.value.aspectRatio,
-                child: VideoPlayer(controller!),
-              ),
-            )
-          // Portrait: cover full screen (TikTok style)
-          : FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: size.width,
-                height: size.height,
-                child: VideoPlayer(controller!),
-              ),
-            ),
+    if (size.width > size.height) {
+      // Landscape — contain
+      return ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: controller!.value.aspectRatio,
+            child: VideoPlayer(controller!),
+          ),
+        ),
+      );
+    }
+
+    // Portrait — cover
+    return _PortraitFill(controller: controller!);
+  }
+}
+
+// =============================================================================
+// _PortraitFill
+//
+// Meseleniň düýp sebäbi:
+//   VideoPlayer widget-i Flutter layout engine tarapyndan berlen
+//   constraint ölçegine görä render edilýär.
+//   Öň AspectRatio → Transform.scale zynjyrynda AspectRatio
+//   Stack-yň doly ölçegini alýardy (meselem 390×844),
+//   soňra scale edilýärdi → netije nädogry bolýardy.
+//
+// Dogry çözgüt — FittedBox(fit: BoxFit.cover):
+//   1. VideoPlayer hakyky wideo ölçeginde (meselem 1080×1920) çekilýär
+//   2. FittedBox ony ekrany doly doldurýança scale edýär
+//   3. BoxFit.cover ekrany doly doldurýar, aspect ratio saklanýar
+//   4. Artykmaç bölek daşary çykýar → ClipRect bilen kesilýär
+//
+// Bu usul:
+//   - Her wideo üçin aýratyn hasaplama gerek däl
+//   - Flutter-yň built-in BoxFit logikasy ulanylýar (ygtybarly)
+//   - Constraint meselesinden gaça durýar
+// =============================================================================
+
+class _PortraitFill extends StatelessWidget {
+  const _PortraitFill({required this.controller});
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = controller.value.size;
+
+    return ClipRect(
+      child: SizedBox.expand(
+        child: FittedBox(
+          fit: BoxFit.cover,
+          // SizedBox wideonyň HAKYKY pixel ölçegini Flutter-a berýär.
+          // FittedBox şony ekrana scale edýär.
+          // Öň bu SizedBox ýokdy — şonuň üçin işlemeýärdi.
+          child: SizedBox(
+            width: size.width,
+            height: size.height,
+            child: VideoPlayer(controller),
+          ),
+        ),
+      ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Supporting widgets
-// ─────────────────────────────────────────────────────────────────────────────
+// =============================================================================
+// Pause indicator
+// =============================================================================
 
 class _PauseIndicator extends StatelessWidget {
   const _PauseIndicator();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -295,12 +321,17 @@ class _PauseIndicator extends StatelessWidget {
   }
 }
 
+// =============================================================================
+// Seek zones
+// =============================================================================
+
 enum _SeekDirection { forward, backward }
 
 class _SeekZone extends StatefulWidget {
   const _SeekZone({required this.direction, required this.onDoubleTap});
   final _SeekDirection direction;
   final VoidCallback onDoubleTap;
+
   @override
   State<_SeekZone> createState() => _SeekZoneState();
 }
@@ -385,6 +416,10 @@ class _SeekZoneState extends State<_SeekZone>
   }
 }
 
+// =============================================================================
+// Top bar
+// =============================================================================
+
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.visible, required this.video});
   final bool visible;
@@ -424,20 +459,41 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _BottomMeta extends StatelessWidget {
+// =============================================================================
+// Bottom meta
+// =============================================================================
+
+class _BottomMeta extends StatefulWidget {
   const _BottomMeta({
     required this.video,
     required this.controller,
     required this.visible,
   });
+
   final Video video;
   final VideoPlayerController? controller;
   final bool visible;
 
   @override
+  State<_BottomMeta> createState() => _BottomMetaState();
+}
+
+class _BottomMetaState extends State<_BottomMeta> {
+  bool _expanded = false;
+
+  @override
+  void didUpdateWidget(_BottomMeta old) {
+    super.didUpdateWidget(old);
+    if (old.video.id != widget.video.id) _expanded = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hasDesc = widget.video.description.isNotEmpty;
+    final needsToggle = hasDesc && widget.video.description.length > 80;
+
     return AnimatedOpacity(
-      opacity: visible ? 1.0 : 0.0,
+      opacity: widget.visible ? 1.0 : 0.0,
       duration: const Duration(milliseconds: 200),
       child: Container(
         padding: EdgeInsets.only(
@@ -450,44 +506,51 @@ class _BottomMeta extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
-            colors: [Color(0xCC000000), Colors.transparent],
+            colors: [Color(0xDD000000), Colors.transparent],
           ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(video.title,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700)),
-            if (video.description.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(video.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            Text(
+              widget.video.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (hasDesc) ...[
+              const SizedBox(height: 5),
+              _DescriptionToggle(
+                text: widget.video.description,
+                expanded: _expanded,
+                needsToggle: needsToggle,
+                onToggle: () => setState(() => _expanded = !_expanded),
+              ),
             ],
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Row(
               children: [
-                Text(TimeUtils.timeAgo(video.createdAt),
-                    style:
-                        const TextStyle(color: Colors.white54, fontSize: 12)),
+                Text(
+                  TimeUtils.timeAgo(widget.video.createdAt),
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
                 const SizedBox(width: 12),
                 const Icon(Icons.visibility_outlined,
-                    color: Colors.white38, size: 14),
+                    color: Colors.white38, size: 13),
                 const SizedBox(width: 4),
-                Text(video.viewsDisplay,
-                    style:
-                        const TextStyle(color: Colors.white54, fontSize: 12)),
+                Text(
+                  widget.video.viewsDisplay,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
               ],
             ),
-            if (controller != null) ...[
+            if (widget.controller != null) ...[
               const SizedBox(height: 12),
               VideoProgressIndicator(
-                controller!,
+                widget.controller!,
                 allowScrubbing: true,
                 colors: const VideoProgressColors(
                   playedColor: Color(0xFFE94560),
@@ -497,6 +560,53 @@ class _BottomMeta extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DescriptionToggle extends StatelessWidget {
+  const _DescriptionToggle({
+    required this.text,
+    required this.expanded,
+    required this.needsToggle,
+    required this.onToggle,
+  });
+
+  final String text;
+  final bool expanded;
+  final bool needsToggle;
+  final VoidCallback onToggle;
+
+  static const _body =
+      TextStyle(color: Colors.white70, fontSize: 13, height: 1.5);
+  static const _action = TextStyle(
+      color: Colors.white38, fontSize: 13, fontWeight: FontWeight.w600);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!needsToggle) return Text(text, style: _body);
+
+    return GestureDetector(
+      onTap: onToggle,
+      child: AnimatedCrossFade(
+        duration: const Duration(milliseconds: 220),
+        crossFadeState:
+            expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+        firstChild: RichText(
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          text: TextSpan(children: [
+            TextSpan(text: text, style: _body),
+            const TextSpan(text: ' köpräk', style: _action),
+          ]),
+        ),
+        secondChild: RichText(
+          text: TextSpan(children: [
+            TextSpan(text: text, style: _body),
+            const TextSpan(text: '  az görkez', style: _action),
+          ]),
         ),
       ),
     );

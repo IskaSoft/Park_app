@@ -18,7 +18,7 @@ class ParkApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Park',
+      title: 'Seyil-Et!',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       home: const CategoriesScreen(),

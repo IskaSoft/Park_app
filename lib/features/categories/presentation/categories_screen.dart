@@ -27,7 +27,15 @@ class CategoriesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Seýil'), // ← app adyňyzy şu ýere ýazyň
+        centerTitle: true,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/logo2.png', width: 36, height: 36),
+            const SizedBox(width: 8),
+            const Text('Seýil-Et!'),
+          ],
+        ),
         actions: [
           Stack(
             children: [
