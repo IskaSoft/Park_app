@@ -1,10 +1,21 @@
+// lib/features/videos/providers/video_providers.dart
+// Replace entire file.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/models.dart';
 import '../../../core/models/paginated_response.dart';
-import '../../categories/providers/category_providers.dart';
+import '../../../core/network/api_client.dart';
 import '../data/video_repository.dart';
 
-// ── Filter params ─────────────────────────────────────────────────────────────
+// ── Infrastructure ────────────────────────────────────────────────────────────
+
+final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+
+final videoRepositoryProvider = Provider<VideoRepository>(
+  (ref) => VideoRepository(ref.read(apiClientProvider)),
+);
+
+// ── Filter ────────────────────────────────────────────────────────────────────
 
 class VideoFilter {
   const VideoFilter({this.categoryId, this.subcategoryId});
@@ -23,16 +34,10 @@ class VideoFilter {
 
 // ── Providers ─────────────────────────────────────────────────────────────────
 
-final videoRepositoryProvider = Provider<VideoRepository>(
-  (ref) => VideoRepository(ref.read(apiClientProvider)),
-);
-
 final videosProvider =
     FutureProvider.family<PaginatedResponse<Video>, VideoFilter>(
-  (ref, filter) async {
-    return ref.read(videoRepositoryProvider).fetchVideos(
-          categoryId: filter.categoryId,
-          subcategoryId: filter.subcategoryId,
-        );
-  },
+  (ref, filter) => ref.read(videoRepositoryProvider).fetchVideos(
+        categoryId: filter.categoryId,
+        subcategoryId: filter.subcategoryId,
+      ),
 );

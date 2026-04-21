@@ -1,8 +1,10 @@
+// lib/shared/widgets/video_thumbnail_card.dart
+// Replace entire file.
+
 import 'package:flutter/material.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/time_utils.dart';
 
-/// TikTok-explore-style video card with thumbnail preview.
 class VideoThumbnailCard extends StatelessWidget {
   const VideoThumbnailCard({
     super.key,
@@ -34,27 +36,32 @@ class VideoThumbnailCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Thumbnail or fallback
+              // ── Thumbnail ──────────────────────────────────────────────────
               _ThumbnailImage(url: video.thumbnailUrl),
 
-              // Gradient
+              // ── Gradient ───────────────────────────────────────────────────
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: [0.5, 1.0],
-                    colors: [Colors.transparent, Color(0xDD000000)],
+                    stops: [0.45, 1.0],
+                    colors: [Colors.transparent, Color(0xEE000000)],
                   ),
                 ),
               ),
 
-              // Play icon (centre)
-              const Center(
-                child: _PlayIcon(),
+              // ── Views badge (top-right) ────────────────────────────────────
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _ViewsBadge(viewsDisplay: video.viewsDisplay),
               ),
 
-              // Meta overlay (bottom)
+              // ── Play icon ──────────────────────────────────────────────────
+              const Center(child: _PlayIcon()),
+
+              // ── Title + time (bottom) ──────────────────────────────────────
               Positioned(
                 bottom: 8,
                 left: 8,
@@ -71,13 +78,14 @@ class VideoThumbnailCard extends StatelessWidget {
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
+                        height: 1.3,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       TimeUtils.timeAgo(video.createdAt),
                       style: const TextStyle(
-                        color: Colors.white60,
+                        color: Colors.white54,
                         fontSize: 10,
                       ),
                     ),
@@ -91,6 +99,41 @@ class VideoThumbnailCard extends StatelessWidget {
     );
   }
 }
+
+// ── Views badge ───────────────────────────────────────────────────────────────
+
+class _ViewsBadge extends StatelessWidget {
+  const _ViewsBadge({required this.viewsDisplay});
+  final String viewsDisplay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.visibility_rounded, color: Colors.white70, size: 11),
+          const SizedBox(width: 3),
+          Text(
+            viewsDisplay,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Thumbnail image ───────────────────────────────────────────────────────────
 
 class _ThumbnailImage extends StatelessWidget {
   const _ThumbnailImage({this.url});
@@ -117,20 +160,26 @@ class _ThumbnailImage extends StatelessWidget {
       );
 }
 
+// ── Play icon ─────────────────────────────────────────────────────────────────
+
 class _PlayIcon extends StatelessWidget {
   const _PlayIcon();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 40,
-      height: 40,
+      width: 38,
+      height: 38,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withOpacity(0.18),
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white30),
       ),
-      child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
+      child: const Icon(
+        Icons.play_arrow_rounded,
+        color: Colors.white,
+        size: 22,
+      ),
     );
   }
 }

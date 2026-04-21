@@ -1,4 +1,5 @@
-// ── Category ──────────────────────────────────────────────────────────────────
+// lib/core/models/models.dart
+// Replace the entire file with this content.
 
 class Category {
   const Category({
@@ -26,8 +27,6 @@ class Category {
       );
 }
 
-// ── Subcategory ───────────────────────────────────────────────────────────────
-
 class Subcategory {
   const Subcategory({
     required this.id,
@@ -49,8 +48,6 @@ class Subcategory {
       );
 }
 
-// ── Video ─────────────────────────────────────────────────────────────────────
-
 class Video {
   const Video({
     required this.id,
@@ -59,6 +56,8 @@ class Video {
     required this.createdAt,
     this.thumbnailUrl,
     this.description = '',
+    this.views = 0,
+    this.viewsDisplay = '0',
   });
 
   final int id;
@@ -67,6 +66,8 @@ class Video {
   final String? thumbnailUrl;
   final String description;
   final DateTime createdAt;
+  final int views;
+  final String viewsDisplay; // "1.2K", "3.4M" etc.
 
   factory Video.fromJson(Map<String, dynamic> json) => Video(
         id: json['id'] as int,
@@ -75,5 +76,19 @@ class Video {
         thumbnailUrl: json['thumbnail'] as String?,
         description: json['description'] as String? ?? '',
         createdAt: DateTime.parse(json['created_at'] as String),
+        views: json['views'] as int? ?? 0,
+        viewsDisplay: json['views_display'] as String? ?? '0',
       );
+
+  /// Used for local storage (saved videos).
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'file': fileUrl,
+        'thumbnail': thumbnailUrl,
+        'description': description,
+        'created_at': createdAt.toIso8601String(),
+        'views': views,
+        'views_display': viewsDisplay,
+      };
 }

@@ -1,3 +1,5 @@
+// lib/features/videos/data/video_repository.dart
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/models.dart';
 import '../../../core/models/paginated_response.dart';
@@ -24,5 +26,16 @@ class VideoRepository {
   Future<Video> fetchVideo(int id) async {
     final data = await _client.get('${AppConstants.videosEndpoint}$id/');
     return Video.fromJson(data);
+  }
+
+  /// POST /api/videos/{id}/view/
+  /// Fire-and-forget — called once when video starts playing.
+  /// Errors are swallowed intentionally; view count is non-critical.
+  Future<void> incrementView(int id) async {
+    try {
+      await _client.post('${AppConstants.videosEndpoint}$id/view/');
+    } catch (_) {
+      // Non-critical — silently ignore
+    }
   }
 }
