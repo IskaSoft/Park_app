@@ -132,7 +132,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           final ctrl = _controllers[index];
           final isActive = index == _currentIndex;
           final hasError = ctrl?.value.hasError ?? false;
-          final isInitialized = (ctrl?.value.isInitialized ?? false) && !hasError;
+          final isInitialized =
+              (ctrl?.value.isInitialized ?? false) && !hasError;
           final isPlaying = ctrl?.value.isPlaying ?? false;
 
           return GestureDetector(
@@ -153,7 +154,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                           child: Text(
                             'Wideo açylmady\n${ctrl?.value.errorDescription ?? "Bul enjamda format goldanylmaýar"}',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white54, fontSize: 13),
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 13),
                           ),
                         ),
                       ],
@@ -161,7 +163,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                   )
                 else
                   _SmartVideoLayer(controller: isInitialized ? ctrl : null),
-
                 if (!isInitialized && !hasError)
                   const Center(
                     child: CircularProgressIndicator(
@@ -242,8 +243,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 //
 // Meseläniň çözgüdi:
 //   Göz öňünde tutulyşy ýaly wideolarda "gyralary görünmeýär" meselesi
-//   ýa-da "has kiçi görünýär" diýen duýgysy bolmazlygy üçin arka fona 
-//   hiç hili çäk (bars) goýman, şol wideonyň özüni ümezleden (blur) edip  
+//   ýa-da "has kiçi görünýär" diýen duýgysy bolmazlygy üçin arka fona
+//   hiç hili çäk (bars) goýman, şol wideonyň özüni ümezleden (blur) edip
 //   goýýarys we üstünden bolsa wideony doly görkezýäris (contain).
 //   Şeýlelik bilen:
 //   - Wideonyň ähli gyralary görünýär. (Kesilmeýär)

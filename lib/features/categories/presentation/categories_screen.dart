@@ -32,7 +32,7 @@ class CategoriesScreen extends ConsumerWidget {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset('assets/logo2.png', width: 36, height: 36),
+            Image.asset('assets/logo3.png', width: 36, height: 36),
             const SizedBox(width: 8),
             const Text('Seýil-Et!'),
           ],
